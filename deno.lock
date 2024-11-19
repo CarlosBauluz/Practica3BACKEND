@@ -68,6 +68,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/assert@1",
       "npm:mongodb@^6.10.0"
     ]
   }
