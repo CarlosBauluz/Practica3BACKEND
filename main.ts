@@ -1,8 +1,7 @@
 import { MongoClient } from 'mongodb'
 import { ObjectId } from "mongodb";
-import { user, userdb } from "./types.ts";
-import { getuserporemail, getuserpornombre, gettodo } from "./funciones.ts";
-
+import { tareas, tareasdb } from "./types.ts";
+import { tareaporid } from "./funciones.ts";
 
 const url = Deno.env.get("URL");
 if (!url){
@@ -10,96 +9,77 @@ if (!url){
 }
 
 const client = new MongoClient(url);
-const dbName = 'ExamenParcial';
+const dbName = 'P3BACKEND';
 
 await client.connect();
 console.log('Connected successfully to server');
 const db = client.db(dbName); 
-const usercollection = db.collection<userdb>('users');
+const taskcollection = db.collection<tareasdb>('tareas');
 
 const handler = async(req:Request):Promise<Response> =>{
   const method = req.method;
   const url = new URL(req.url)
   const path = url.pathname
 
-  if (method === "GET"){  
-    if (path === "/persona"){
-      const param = url.searchParams.toString()
-
-      if (param === "name"){
-        return getuserpornombre(param, usercollection)
-      }
-
-      if (param === "email"){
-        return getuserporemail(param, usercollection)
-      }
-      
-      const usuarios = await usercollection.find().toArray()
-      return new Response (JSON.stringify(usuarios))
-    }
-
-
-    return new Response ("Path incorrecto")
+  if (method === "GET"){ 
+    if (path === "/tasks"){
+        const todastareas = await taskcollection.find().toArray();
+        return new Response (JSON.stringify(todastareas))
+    }else if (path.startsWith("/tasks/")){
+      const id = path.replace("/tasks/", "").toString();
+      return tareaporid(id, taskcollection);
+    } 
+    
+    
   }else if (method === "POST"){
     const body = await req.json()
-    
-    if (path === "/persona"){
-      const comprobaremail = await usercollection.findOne({email : body.email})
-      if (comprobaremail !== null){
-        return new Response ("Ya hay alguien con ese email")
-      }
-      const comprobartlf = await usercollection.findOne({telefono : body.telefono})
-      if (comprobartlf !== null){
-        return new Response ("Ya hay alguien con ese numero de telefono")
-      } 
+    if (path === "/tasks"){
 
-      
-      const am = body.amigos.toString()
-
-      await usercollection.insertOne({
-        nombre : body.nombre,
-        email : body.email,
-        telefono : body.telefono,
-        amigos : am
+      const {insertedId} = await taskcollection.insertOne({
+        title : body.title,
+        completed : false
       })
 
-      const respuesta = await gettodo(body, usercollection);
-
-      return new Response (JSON.stringify(respuesta))
+      return new Response (JSON.stringify(await taskcollection.findOne({
+        _id: insertedId
+      })))
     }
-
+    
   }else if (method === "PUT"){
     const body = await req.json()
-
-      if (path === "/persona"){
-        
-        await usercollection.updateOne({email : body.email}, {
-          nombre : body.nombre,
-          telefono : body.telefono,
-          amigos : body.amigos
-        })
-        return new Response("Modificado")
+    if (path.startsWith("/tasks/")){
+      const id = path.replace("/tasks/", "").toString();
+      if (!id){
+        return new Response(JSON.stringify({error : "No se ha encontrado el id"}))
       }
+      const {upsertedId} = await taskcollection.updateOne({_id : new ObjectId(id)},{
+        $set: {
+          completed: body.completed
+        }
+      })
 
-      return new Response ("path incorrecto")
+      return new Response (JSON.stringify(await taskcollection.findOne({
+        _id: new ObjectId(id)
+      })))
+
+    } 
+
 
   }else if (method === "DELETE"){
     const body = await req.json()
-
-    if (path === "/persona"){
-      
-      const personaop = await usercollection.findOne({email : body.email});
-      if (!personaop){
-        return new Response ("No se ha encontrado la persona", {status :404})
+    if (path.startsWith("/tasks/")){
+      const id = path.replace("/tasks/", "").toString();
+      if (!id){
+        return new Response(JSON.stringify({error :"Tarea no encontrada"}))
       }
+      
+      await taskcollection.deleteOne({_id : new ObjectId(id)})
+      return new Response(JSON.stringify({message: "Tarea eliminada correctamente"}))
 
-      await usercollection.deleteOne({email:body.email})
-      return new Response ("Eliminado correctamente")
     }
-    return new Response
   }
 
-  return new Response("")
+  return new Response(JSON.stringify({error : "Path incorrecto"}))
 }
 
 Deno.serve({port : 3000}, handler)

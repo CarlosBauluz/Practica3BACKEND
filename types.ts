@@ -1,15 +1,12 @@
-import { ObjectId } from "mongodb";
+import { ObjectId, OptionalId } from "mongodb";
 
-export type user = {
-    nombre : string,
-    email : string,
-    telefono : string
-    amigos : string
+export type tareas = {
+    id : string,
+    title : string,
+    completed : boolean
 } 
 
-export type userdb = {
-    nombre : string,
-    email : string,
-    telefono : string
-    amigos : ObjectId[]
-}
+export type tareasdb = OptionalId<{
+    title : string,
+    completed : boolean
+}>
